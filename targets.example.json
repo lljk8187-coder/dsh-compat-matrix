@@ -1,0 +1,11 @@
+{
+  "_comment": "Example targets file. Copy to targets.json and edit. See README for field meanings.",
+  "dshVersion": "0.0.0-placeholder",
+  "plugins": [
+    {
+      "id": "example-plugin",
+      "source": "npm:@example/plugin@1.0.0",
+      "notes": "Placeholder — M2 will probe install → dump hang-layer → light load"
+    }
+  ]
+}
