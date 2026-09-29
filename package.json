@@ -1,7 +1,7 @@
 {
   "name": "dsh-compat-matrix",
-  "version": "0.3.0",
-  "description": "On a specified dsh version, probe plugins via install → dump hang-layer → lite schema load (M3) toward a compatibility matrix",
+  "version": "0.4.0",
+  "description": "On a specified dsh version, probe plugins via install \u2192 dump hang-layer \u2192 lite schema load; MatrixReport + CLI run (M4)",
   "type": "module",
   "bin": {
     "dsh-compat-matrix": "./src/cli.ts"

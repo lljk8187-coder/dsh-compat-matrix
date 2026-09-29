@@ -1,4 +1,4 @@
-/** Report helpers — JSON + three-state summary (M3). Matrix files arrive in M4+. */
+/** Report helpers — probe JSON/summary (M3) + MatrixReport writers (M4). */
 
 export function formatProbeJson(result: unknown): string {
   return JSON.stringify(result, null, 2);
@@ -31,3 +31,15 @@ export function formatProbeSummary(result: {
     `${result.error ? ` — ${result.error}` : ""}`
   );
 }
+
+export {
+  MATRIX_DUMP_NOTE,
+  buildMatrixReport,
+  formatMatrixReportJson,
+  formatMatrixReportMd,
+  matrixAllOk,
+  probeResultToRow,
+  type MatrixReport,
+  type MatrixRow,
+  type ProbeLikeForRow,
+} from "./matrix-report.js";
