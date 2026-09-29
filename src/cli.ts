@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 /**
- * dsh-compat-matrix CLI entry (M4: MatrixReport + run).
+ * dsh-compat-matrix CLI entry (M5: targets serial batch + MatrixReport).
  */
 
 import { probeLocalPlugin } from "./probe/index.js";
 import { formatProbeJson, formatProbeSummary } from "./report/index.js";
-import { parseOutDirArg, runMatrix } from "./runner/index.js";
+import {
+  loadTargets,
+  parseRunArgs,
+  runMatrix,
+} from "./runner/index.js";
 
 const HELP = `dsh-compat-matrix — plugin compatibility matrix for a specified dsh version
 
@@ -15,13 +19,15 @@ Usage:
 
 Commands:
   probe <path>              Probe a local plugin: install → hang-layer → lite schema load
-  run [--out-dir ./out]     Probe default fixtures serially; write report.json + report.md (M4)
+  run [--targets <file>] [--out-dir ./out]
+                            Probe fixtures (default) or targets file serially; write report.json + report.md (M5)
   help                      Show this help
 
 Options:
   -h, --help                Show this help
   -V, --version             Show version
   --out-dir <dir>           Output directory for \`run\` (default: ./out); also --out-dir=<dir>
+  --targets <file>          Targets JSON for \`run\` (local path plugins); also --targets=<file>
 
 Examples:
   npx tsx src/cli.ts probe fixtures/hello-plugin
@@ -29,11 +35,19 @@ Examples:
   npx tsx src/cli.ts probe fixtures/bad-patch-plugin
   npx tsx src/cli.ts run --out-dir ./out
   npx tsx src/cli.ts run --out-dir=./out
+  npx tsx src/cli.ts run --targets targets.example.json --out-dir ./out-m5
+  npx tsx src/cli.ts run --targets=targets.example.json --out-dir=./out-m5
 
-Default fixtures for \`run\` (fixed order):
+Default fixtures for \`run\` without --targets (fixed order):
   1. fixtures/hello-plugin
   2. fixtures/no-bundle-plugin
   3. fixtures/bad-patch-plugin
+
+Targets file (see targets.example.json):
+  { "dshVersion": "optional doc-only", "plugins": [ { "id": "hello", "path": "fixtures/hello-plugin" } ] }
+  - path required (relative to cwd or absolute)
+  - id optional but preferred as MatrixRow.plugin label
+  - dshVersion is documentation only — does NOT switch dsh binaries
 
 Requirements (probe / run):
   - Node ≥22.19 for dsh
@@ -45,9 +59,10 @@ Notes:
   - dump ≠ real boot. Hang-layer dump and --dump-config-schema are not a full dsh boot.
   - load_ok is lite schema only (schema ≠ 全量 boot).
   - Overall success (exit 0) only when install_ok && config_hang_ok && load_ok (all rows for run).
-  - With the three default fixtures, \`run\` is expected to exit ≠0 (neg cases) — that is OK.
+  - With the three default fixtures / targets.example, \`run\` is expected to exit ≠0 (neg cases) — that is OK.
   - probe/run use a temporary DSH_HOME only; never writes to ~/.dsh.
   - Sample report paths: out/report.json, out/report.md
+  - M5: targets serial batch. No M6 CI, no real-net npm plugins in defaults/examples.
 `;
 
 function printHelp(): void {
@@ -55,7 +70,7 @@ function printHelp(): void {
 }
 
 function printVersion(): void {
-  process.stdout.write("dsh-compat-matrix 0.4.0 (M4 MatrixReport + run)\n");
+  process.stdout.write("dsh-compat-matrix 0.5.0 (M5 targets serial batch)\n");
 }
 
 async function runProbe(pluginPath: string | undefined): Promise<void> {
@@ -94,9 +109,16 @@ async function runProbe(pluginPath: string | undefined): Promise<void> {
 }
 
 async function runMatrixCmd(args: string[]): Promise<void> {
-  const outDir = parseOutDirArg(args);
+  const { outDir, targetsPath } = parseRunArgs(args);
   try {
-    const result = await runMatrix({ outDir });
+    let plugins;
+    if (targetsPath) {
+      const targets = await loadTargets(targetsPath);
+      plugins = targets.plugins;
+    }
+    const result = await runMatrix(
+      plugins ? { outDir, plugins } : { outDir },
+    );
     process.stdout.write(
       JSON.stringify(
         {
@@ -107,6 +129,7 @@ async function runMatrixCmd(args: string[]): Promise<void> {
           rows: result.report.rows.length,
           dshVersion: result.report.dshVersion,
           generated_at: result.report.generated_at,
+          targets: targetsPath ?? null,
         },
         null,
         2,

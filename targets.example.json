@@ -1,11 +1,8 @@
 {
-  "_comment": "Example targets file. Copy to targets.json and edit. See README for field meanings.",
-  "dshVersion": "0.0.0-placeholder",
+  "dshVersion": "0.1.7-rc.2",
   "plugins": [
-    {
-      "id": "example-plugin",
-      "source": "npm:@example/plugin@1.0.0",
-      "notes": "Placeholder — M2 will probe install → dump hang-layer → light load"
-    }
+    { "id": "hello", "path": "fixtures/hello-plugin" },
+    { "id": "no-bundle", "path": "fixtures/no-bundle-plugin" },
+    { "id": "bad-patch", "path": "fixtures/bad-patch-plugin" }
   ]
 }

@@ -4,9 +4,9 @@
 
 > **重要：dump ≠ 真实 boot / lite schema ≠ 全量 boot。** hang-layer（`dsh --dump-config`）与 `load_ok`（`dsh --dump-config-schema`）都是轻量探测，不是完整 `dsh` 启动，也不是 `dsh web`。
 
-## 定位（M4）
+## 定位（M5）
 
-本仓库提供 TypeScript CLI。**M4** 在 M3 三态探测之上，支持 **MatrixReport 落盘** 与 CLI **`run`**：
+本仓库提供 TypeScript CLI。**M5** 在 M4 MatrixReport / `run` 之上，支持 **targets 串行批量**：
 
 1. **install_ok** — `dsh plugin --profile <p> add <path>` exit 0  
 2. **config_hang_ok** — `--dump-config` stdout 含 `# == <packageName>` hang-layer  
@@ -14,16 +14,17 @@
 
 整体成功（CLI exit 0）仅当三者皆 true（`run` 则要求**每一行**皆 true）；否则 exit ≠0，并设置 `error_stage`（`preflight` | `install` | `config_hang` | `load`）。**不**启动 `dsh web`，**不**写入真实 `~/.dsh`。
 
-默认夹具含负向用例时，`run` **预期 exit ≠0**（属正常）。
+默认夹具 / `targets.example.json` 含负向用例时，`run` **预期 exit ≠0**（属正常）。
 
 ## 非目标（Non-goals）
 
 - 应用商店 / 插件市场
 - 自动修复（auto-fix）
 - Oh-My-DSH 集成
-- 对真实网络插件的压测 / hammering（无 real-net / 真网）
-- **targets 批量（M5）** / **CI workflow（M6）** — 尚未实现
+- 对真实网络插件的压测 / hammering（无 real-net / 真网；defaults/examples 不含 npm 真网插件）
+- **CI workflow（M6）** — 尚未实现
 - 真实全量 boot / `dsh web` / 不启 web
+- 按 targets.`dshVersion` 切换 dsh 二进制（该字段仅文档）
 
 ## 环境要求（probe / run）
 
@@ -45,16 +46,20 @@ npm install
 npx tsx src/cli.ts --help
 ```
 
-### 矩阵 `run`（M4）
+### 矩阵 `run`（M4 默认夹具 / M5 targets）
 
-串行探测默认夹具，始终写出 `report.json` + `report.md`（即便部分失败）：
+串行探测，始终写出 `report.json` + `report.md`（即便部分失败）：
 
 ```bash
 export PATH="/home/box/.local/node22/bin:/home/box/.local/bin:$PATH"
 
+# 默认三夹具（无 --targets，行为与 M4 相同）
 npx tsx src/cli.ts run --out-dir ./out
 # 也支持: npx tsx src/cli.ts run --out-dir=./out
-# 默认 --out-dir 为 ./out
+
+# M5：从 targets 文件串行批量（按 listed order）
+npx tsx src/cli.ts run --targets targets.example.json --out-dir ./out-m5
+# 也支持: --targets=targets.example.json --out-dir=./out-m5
 ```
 
 样例路径：
@@ -62,11 +67,35 @@ npx tsx src/cli.ts run --out-dir ./out
 - `out/report.json` — pretty JSON（indent 2）
 - `out/report.md` — Markdown 表：插件 | install | hang | load | stage | ms；顶部注明 **dump ≠ boot**
 
-默认夹具（固定顺序）：
+默认夹具（无 `--targets`，固定顺序）：
 
 1. `fixtures/hello-plugin`
 2. `fixtures/no-bundle-plugin`
 3. `fixtures/bad-patch-plugin`
+
+### targets 文件（M5）
+
+见 [`targets.example.json`](./targets.example.json)：
+
+```json
+{
+  "dshVersion": "0.1.7-rc.2",
+  "plugins": [
+    { "id": "hello", "path": "fixtures/hello-plugin" },
+    { "id": "no-bundle", "path": "fixtures/no-bundle-plugin" },
+    { "id": "bad-patch", "path": "fixtures/bad-patch-plugin" }
+  ]
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `plugins[].path` | **必填**：本地插件路径（相对 cwd 或绝对） |
+| `plugins[].id` | 可选但推荐：用作 `MatrixRow.plugin` 标签；缺省则用 path |
+| `dshVersion` | 可选文档字段；**不**切换 dsh 二进制；报告仍用 live `getDshVersion()` |
+| `plugins` | 不可为空；缺 path / 空数组 → 清晰 Error |
+
+仅支持本地 path 插件（本里程碑）；无 npm / 真网默认。
 
 ### 单插件 `probe`
 
@@ -91,6 +120,7 @@ stdout 为结构化 JSON；stderr 一行摘要。
 |------|------|------|
 | `probe <path>` | **M3** | 临时 DSH_HOME：三态 install → hang → lite schema |
 | `run [--out-dir ./out]` | **M4** | 默认夹具串行探测 → `report.json` + `report.md` |
+| `run --targets <file> [--out-dir ./out]` | **M5** | targets 串行批量；支持 `--targets=` / `--out-dir=` |
 | `--help` / `help` | 可用 | 打印帮助 |
 
 ## 目录结构
@@ -100,14 +130,15 @@ src/
   cli.ts                 # CLI 入口
   runner/temp-home.ts    # 临时 DSH_HOME
   runner/dsh.ts          # resolve + run dsh
-  runner/run-matrix.ts   # run 编排（M4）
+  runner/run-matrix.ts   # run 编排（M4/M5）
+  runner/targets.ts      # targets 加载 / 校验（M5）
   probe/probe-local.ts   # 本地三态探测
   report/                # probe 格式化 + MatrixReport 落盘
 fixtures/hello-plugin/       # 正向夹具
 fixtures/no-bundle-plugin/   # 负向：无 dsh.bundle
 fixtures/bad-patch-plugin/   # 负向：无效 patch YAML
 out/                         # run 输出（gitignore）
-targets.example.json         # 目标配置示例（M5 消费）
+targets.example.json         # 目标配置示例（本地三夹具）
 ```
 
 ## 夹具摘要
@@ -129,14 +160,15 @@ npm test
 
 - 帮助烟雾测试始终运行。
 - MatrixReport 单元测试（无 dsh）：假 Probe → JSON keys + MD 表头 / dump≠boot / 插件名。
-- 集成测试：若 PATH 上有 `dsh`，对夹具跑 probe / `run` 烟雾；若无 dsh 则 **`t.skip('dsh not installed')`**，CI 友好。
+- targets 单元：解析 `targets.example.json`；拒绝坏 JSON / 空 plugins / 缺 path。
+- 集成测试：若 PATH 上有 `dsh`，对夹具跑 probe / `run` / `run --targets` 烟雾；若无 dsh 则 **`t.skip('dsh not installed')`**，CI 友好。
 
 ## 开发脚本
 
 ```bash
 npm run help       # 打印 CLI 帮助
 npm run typecheck  # tsc --noEmit
-npm test           # 帮助 + MatrixReport +（有 dsh 时）probe/run 集成
+npm test           # 帮助 + MatrixReport + targets +（有 dsh 时）probe/run 集成
 ```
 
 ## 许可
@@ -148,6 +180,6 @@ MIT — 见 [LICENSE](./LICENSE)。
 - **M1**：LICENSE、README、TS 脚手架、stub `probe` / `run`
 - **M2**：本地夹具 + 临时 DSH_HOME + hang-layer
 - **M3**：三态 probe + 正/负向夹具 + lite `load_ok`
-- **M4**（当前）：MatrixReport 落盘 + CLI `run`
-- **M5**：targets 批量
+- **M4**：MatrixReport 落盘 + CLI `run`
+- **M5**（当前）：targets 串行批量
 - **M6**：CI workflow

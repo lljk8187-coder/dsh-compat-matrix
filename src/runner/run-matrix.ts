@@ -1,5 +1,5 @@
 /**
- * Matrix run orchestrator (M4): serial probe of default fixtures → report.json + report.md.
+ * Matrix run orchestrator (M4/M5): serial probe of fixtures or targets plugins → report.json + report.md.
  * Uses temp DSH_HOME only (via probeLocalPlugin); never ~/.dsh; no web / real-net.
  */
 import { mkdir, writeFile } from "node:fs/promises";
@@ -16,6 +16,7 @@ import {
   type MatrixRow,
 } from "../report/matrix-report.js";
 import { getDshVersion, resolveDshBinary } from "./dsh.js";
+import type { TargetPlugin } from "./targets.js";
 
 export const DEFAULT_MATRIX_FIXTURES = [
   "fixtures/hello-plugin",
@@ -26,8 +27,13 @@ export const DEFAULT_MATRIX_FIXTURES = [
 export type RunMatrixOptions = {
   /** Output directory (relative to cwd or absolute). Default `./out`. */
   outDir?: string;
-  /** Fixture paths relative to cwd. Default DEFAULT_MATRIX_FIXTURES. */
+  /** Fixture paths relative to cwd. Default DEFAULT_MATRIX_FIXTURES when plugins unset. */
   fixtures?: readonly string[];
+  /**
+   * Targets plugins (M5). When set, preferred over fixtures.
+   * MatrixRow.plugin uses id when present, else path.
+   */
+  plugins?: readonly TargetPlugin[];
   cwd?: string;
 };
 
@@ -39,9 +45,23 @@ export type RunMatrixResult = {
   allOk: boolean;
 };
 
+export type ParseRunArgsResult = {
+  outDir: string;
+  targetsPath?: string;
+};
+
 /** Parse `--out-dir <path>` or `--out-dir=<path>`; default `./out`. */
 export function parseOutDirArg(args: string[]): string {
+  return parseRunArgs(args).outDir;
+}
+
+/**
+ * Parse `run` flags: `--out-dir` / `--out-dir=` and `--targets` / `--targets=`.
+ * Returns `{ outDir, targetsPath? }`.
+ */
+export function parseRunArgs(args: string[]): ParseRunArgsResult {
   let outDir = "./out";
+  let targetsPath: string | undefined;
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
     if (a.startsWith("--out-dir=")) {
@@ -53,9 +73,41 @@ export function parseOutDirArg(args: string[]): string {
         outDir = next;
         i++;
       }
+    } else if (a.startsWith("--targets=")) {
+      const v = a.slice("--targets=".length);
+      if (v.length > 0) targetsPath = v;
+    } else if (a === "--targets") {
+      const next = args[i + 1];
+      if (next && !next.startsWith("-")) {
+        targetsPath = next;
+        i++;
+      }
     }
   }
-  return outDir;
+  return targetsPath !== undefined ? { outDir, targetsPath } : { outDir };
+}
+
+type ProbeEntry = {
+  /** MatrixRow.plugin label */
+  label: string;
+  /** Absolute or cwd-relative path for probing */
+  path: string;
+};
+
+function resolveEntries(
+  options: RunMatrixOptions,
+): ProbeEntry[] {
+  if (options.plugins && options.plugins.length > 0) {
+    return options.plugins.map((p) => ({
+      label: p.id && p.id.trim() !== "" ? p.id.trim() : p.path,
+      path: p.path,
+    }));
+  }
+  const fixtures = options.fixtures ?? DEFAULT_MATRIX_FIXTURES;
+  return fixtures.map((rel) => ({
+    label: rel,
+    path: rel,
+  }));
 }
 
 export async function writeMatrixReportFiles(
@@ -71,15 +123,16 @@ export async function writeMatrixReportFiles(
 }
 
 /**
- * Probe each fixture serially, always write report.json + report.md under out-dir.
+ * Probe each entry serially, always write report.json + report.md under out-dir.
  * Prefer writing a preflight-error report when dsh is missing (exit handled by CLI).
+ * Accepts either fixtures[] (M4 default) or targets plugins (M5).
  */
 export async function runMatrix(
   options: RunMatrixOptions = {},
 ): Promise<RunMatrixResult> {
   const cwd = options.cwd ?? process.cwd();
   const outDirAbs = path.resolve(cwd, options.outDir ?? "./out");
-  const fixtures = options.fixtures ?? DEFAULT_MATRIX_FIXTURES;
+  const entries = resolveEntries(options);
 
   let preflightError: string | undefined;
   try {
@@ -89,9 +142,9 @@ export async function runMatrix(
   }
 
   if (preflightError) {
-    const rows: MatrixRow[] = fixtures.map((rel) => ({
-      plugin: rel,
-      path: path.resolve(cwd, rel),
+    const rows: MatrixRow[] = entries.map((e) => ({
+      plugin: e.label,
+      path: path.resolve(cwd, e.path),
       install_ok: false,
       config_hang_ok: false,
       load_ok: false,
@@ -115,18 +168,18 @@ export async function runMatrix(
   const rows: MatrixRow[] = [];
   let dshVersion: string | undefined;
 
-  for (const rel of fixtures) {
-    const abs = path.resolve(cwd, rel);
+  for (const entry of entries) {
+    const abs = path.resolve(cwd, entry.path);
     try {
       const result = await probeLocalPlugin(abs);
       if (!dshVersion && result.dshVersion) {
         dshVersion = result.dshVersion;
       }
-      rows.push(probeResultToRow(rel, result));
+      rows.push(probeResultToRow(entry.label, result));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       rows.push({
-        plugin: rel,
+        plugin: entry.label,
         path: abs,
         install_ok: false,
         config_hang_ok: false,
