@@ -1,4 +1,13 @@
-/** Runner stubs — install → dump hang-layer → light load (M2+). */
-export function notImplemented(feature: string): never {
-  throw new Error(`${feature} is not implemented yet (M2+)`);
-}
+/** Runner — temp DSH_HOME + dsh process helpers (M2). */
+export {
+  createTempDshHome,
+  type TempDshHome,
+} from "./temp-home.js";
+export {
+  resolveDshBinary,
+  runDsh,
+  getDshVersion,
+  DSH_MISSING_HINT,
+  type RunDshOptions,
+  type RunDshResult,
+} from "./dsh.js";

@@ -7,17 +7,23 @@ import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "src", "cli.ts");
 
+const PATH_WITH_NODE22 = [
+  "/home/box/.local/node22/bin",
+  "/home/box/.local/bin",
+  process.env.PATH ?? "",
+].join(":");
+
 describe("cli --help", () => {
-  it("prints usage and stub commands", () => {
+  it("prints usage and commands", () => {
     const result = spawnSync("npx", ["tsx", cli, "--help"], {
       cwd: root,
       encoding: "utf8",
-      env: { ...process.env, npm_config_yes: "true" },
+      env: { ...process.env, npm_config_yes: "true", PATH: PATH_WITH_NODE22 },
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /dsh-compat-matrix/);
     assert.match(result.stdout, /probe/);
     assert.match(result.stdout, /run/);
-    assert.match(result.stdout, /NOT IMPLEMENTED/);
+    assert.match(result.stdout, /dump ≠ real boot|dump ≠ real boot/i);
   });
 });
