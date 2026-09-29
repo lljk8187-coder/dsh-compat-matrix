@@ -1,7 +1,7 @@
 {
   "name": "dsh-compat-matrix",
-  "version": "0.5.0",
-  "description": "On a specified dsh version, probe plugins via install → dump hang-layer → lite schema load; targets serial batch (M5)",
+  "version": "0.1.0",
+  "description": "On a specified dsh version, probe plugins via install → dump hang-layer → lite schema load; Phase1 MVP / M6: install → hang → lite load matrix + CI",
   "type": "module",
   "bin": {
     "dsh-compat-matrix": "./src/cli.ts"

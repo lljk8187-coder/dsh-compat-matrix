@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-compat-matrix CLI entry (M5: targets serial batch + MatrixReport).
+ * dsh-compat-matrix CLI entry (Phase1 MVP 0.1.0 / M6).
  */
 
 import { probeLocalPlugin } from "./probe/index.js";
@@ -20,7 +20,7 @@ Usage:
 Commands:
   probe <path>              Probe a local plugin: install → hang-layer → lite schema load
   run [--targets <file>] [--out-dir ./out]
-                            Probe fixtures (default) or targets file serially; write report.json + report.md (M5)
+                            Probe fixtures (default) or targets file serially; write report.json + report.md
   help                      Show this help
 
 Options:
@@ -62,7 +62,7 @@ Notes:
   - With the three default fixtures / targets.example, \`run\` is expected to exit ≠0 (neg cases) — that is OK.
   - probe/run use a temporary DSH_HOME only; never writes to ~/.dsh.
   - Sample report paths: out/report.json, out/report.md
-  - M5: targets serial batch. No M6 CI, no real-net npm plugins in defaults/examples.
+  - Phase1 MVP 0.1.0 (M1–M6). No real-net npm plugins in defaults/examples.
 `;
 
 function printHelp(): void {
@@ -70,7 +70,7 @@ function printHelp(): void {
 }
 
 function printVersion(): void {
-  process.stdout.write("dsh-compat-matrix 0.5.0 (M5 targets serial batch)\n");
+  process.stdout.write("dsh-compat-matrix 0.1.0 (Phase1 MVP)\n");
 }
 
 async function runProbe(pluginPath: string | undefined): Promise<void> {

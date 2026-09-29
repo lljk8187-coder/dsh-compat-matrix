@@ -4,17 +4,25 @@
 
 > **重要：dump ≠ 真实 boot / lite schema ≠ 全量 boot。** hang-layer（`dsh --dump-config`）与 `load_ok`（`dsh --dump-config-schema`）都是轻量探测，不是完整 `dsh` 启动，也不是 `dsh web`。
 
-## 定位（M5）
+## 定位（Phase1 MVP / M6 收口）
 
-本仓库提供 TypeScript CLI。**M5** 在 M4 MatrixReport / `run` 之上，支持 **targets 串行批量**：
+本仓库提供 TypeScript CLI。**Phase1 MVP `0.1.0`** 已收口 **M1–M6**：
 
 1. **install_ok** — `dsh plugin --profile <p> add <path>` exit 0  
 2. **config_hang_ok** — `--dump-config` stdout 含 `# == <packageName>` hang-layer  
 3. **load_ok** — 安装成功后跑 `--dump-config-schema` exit 0（lite load；安装失败则 `load_ok=false` 并跳过 schema）
 
-整体成功（CLI exit 0）仅当三者皆 true（`run` 则要求**每一行**皆 true）；否则 exit ≠0，并设置 `error_stage`（`preflight` | `install` | `config_hang` | `load`）。**不**启动 `dsh web`，**不**写入真实 `~/.dsh`。
+整体成功（CLI exit 0）仅当三者皆 true（`run` 则要求**每一行**皆 true）；否则 exit ≠0，并设置 `error_stage`（`preflight` | `install` | `config_hang` | `load`）。
 
 默认夹具 / `targets.example.json` 含负向用例时，`run` **预期 exit ≠0**（属正常）。
+
+## 护栏 / Guardrails
+
+- **dump ≠ boot**：lite load = `dump-config-schema`；hang-layer = `dump-config` — 均非真实全量 boot
+- **临时 DSH_HOME only**：probe / run 只用临时目录，**不写** `~/.dsh`
+- **不启 web / 不全量 boot**：不启动 `dsh web`，不做完整 runtime boot
+- **非目标**：商店 / 自动修 / Oh-My-DSH / 真网压测
+- **CI 仅 fixture**：无真网插件矩阵；defaults / examples 仅本地夹具与 `targets.example.json`
 
 ## 非目标（Non-goals）
 
@@ -22,9 +30,9 @@
 - 自动修复（auto-fix）
 - Oh-My-DSH 集成
 - 对真实网络插件的压测 / hammering（无 real-net / 真网；defaults/examples 不含 npm 真网插件）
-- **CI workflow（M6）** — 尚未实现
-- 真实全量 boot / `dsh web` / 不启 web
+- 真实全量 boot / `dsh web`
 - 按 targets.`dshVersion` 切换 dsh 二进制（该字段仅文档）
+- 多版本 dsh 二进制切换 / web profile
 
 ## 环境要求（probe / run）
 
@@ -44,20 +52,21 @@ which dsh && dsh --version
 ```bash
 npm install
 npx tsx src/cli.ts --help
+npx tsx src/cli.ts --version   # 0.1.0 (Phase1 MVP)
 ```
 
-### 矩阵 `run`（M4 默认夹具 / M5 targets）
+### 矩阵 `run`（默认夹具 / targets）
 
 串行探测，始终写出 `report.json` + `report.md`（即便部分失败）：
 
 ```bash
 export PATH="/home/box/.local/node22/bin:/home/box/.local/bin:$PATH"
 
-# 默认三夹具（无 --targets，行为与 M4 相同）
+# 默认三夹具（无 --targets）
 npx tsx src/cli.ts run --out-dir ./out
 # 也支持: npx tsx src/cli.ts run --out-dir=./out
 
-# M5：从 targets 文件串行批量（按 listed order）
+# 从 targets 文件串行批量（按 listed order）
 npx tsx src/cli.ts run --targets targets.example.json --out-dir ./out-m5
 # 也支持: --targets=targets.example.json --out-dir=./out-m5
 ```
@@ -73,7 +82,7 @@ npx tsx src/cli.ts run --targets targets.example.json --out-dir ./out-m5
 2. `fixtures/no-bundle-plugin`
 3. `fixtures/bad-patch-plugin`
 
-### targets 文件（M5）
+### targets 文件
 
 见 [`targets.example.json`](./targets.example.json)：
 
@@ -122,6 +131,7 @@ stdout 为结构化 JSON；stderr 一行摘要。
 | `run [--out-dir ./out]` | **M4** | 默认夹具串行探测 → `report.json` + `report.md` |
 | `run --targets <file> [--out-dir ./out]` | **M5** | targets 串行批量；支持 `--targets=` / `--out-dir=` |
 | `--help` / `help` | 可用 | 打印帮助 |
+| `--version` / `-V` | 可用 | `0.1.0 (Phase1 MVP)` |
 
 ## 目录结构
 
@@ -139,6 +149,8 @@ fixtures/no-bundle-plugin/   # 负向：无 dsh.bundle
 fixtures/bad-patch-plugin/   # 负向：无效 patch YAML
 out/                         # run 输出（gitignore）
 targets.example.json         # 目标配置示例（本地三夹具）
+.github/workflows/ci.yml     # CI（M6）
+CHANGELOG.md                 # 版本说明
 ```
 
 ## 夹具摘要
@@ -155,13 +167,16 @@ targets.example.json         # 目标配置示例（本地三夹具）
 
 ```bash
 export PATH="/home/box/.local/node22/bin:/home/box/.local/bin:$PATH"
+npm run typecheck
 npm test
 ```
 
+- GitHub Actions：[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) — `push` / `pull_request` → `main`；Node 22；`npm ci` → typecheck → best-effort 安装 dsh+pnpm（失败不阻塞）→ `npm test`
 - 帮助烟雾测试始终运行。
 - MatrixReport 单元测试（无 dsh）：假 Probe → JSON keys + MD 表头 / dump≠boot / 插件名。
 - targets 单元：解析 `targets.example.json`；拒绝坏 JSON / 空 plugins / 缺 path。
 - 集成测试：若 PATH 上有 `dsh`，对夹具跑 probe / `run` / `run --targets` 烟雾；若无 dsh 则 **`t.skip('dsh not installed')`**，CI 友好。
+- **仅 fixture**；无真网插件矩阵。
 
 ## 开发脚本
 
@@ -171,15 +186,20 @@ npm run typecheck  # tsc --noEmit
 npm test           # 帮助 + MatrixReport + targets +（有 dsh 时）probe/run 集成
 ```
 
+## 版本
+
+- **package / CLI**：`0.1.0`（Phase1 MVP）
+- 详见 [CHANGELOG.md](./CHANGELOG.md)
+
 ## 许可
 
 MIT — 见 [LICENSE](./LICENSE)。
 
-## 路线图提示
+## 路线图
 
-- **M1**：LICENSE、README、TS 脚手架、stub `probe` / `run`
-- **M2**：本地夹具 + 临时 DSH_HOME + hang-layer
-- **M3**：三态 probe + 正/负向夹具 + lite `load_ok`
-- **M4**：MatrixReport 落盘 + CLI `run`
-- **M5**（当前）：targets 串行批量
-- **M6**：CI workflow
+- [x] **M1**：LICENSE、README、TS 脚手架、stub `probe` / `run`
+- [x] **M2**：本地夹具 + 临时 DSH_HOME + hang-layer
+- [x] **M3**：三态 probe + 正/负向夹具 + lite `load_ok`
+- [x] **M4**：MatrixReport 落盘 + CLI `run`
+- [x] **M5**：targets 串行批量
+- [x] **M6**：CI workflow + 文档护栏 / Phase1 MVP 收口（当前）
