@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-compat-matrix CLI entry (M2: local probe with temp DSH_HOME).
+ * dsh-compat-matrix CLI entry (M3: three-state local probe).
  */
 
 import { probeLocalPlugin } from "./probe/index.js";
@@ -13,8 +13,8 @@ Usage:
   npm run help
 
 Commands:
-  probe <path>   Probe a local plugin: install → --dump-config hang-layer (M2)
-  run            Run full matrix (NOT YET — M3+)
+  probe <path>   Probe a local plugin: install → hang-layer → lite schema load (M3)
+  run            Run full matrix (NOT YET — M4+/matrix)
   help           Show this help
 
 Options:
@@ -23,7 +23,8 @@ Options:
 
 Examples:
   npx tsx src/cli.ts probe fixtures/hello-plugin
-  npx tsx src/cli.ts probe /abs/path/to/plugin
+  npx tsx src/cli.ts probe fixtures/no-bundle-plugin
+  npx tsx src/cli.ts probe fixtures/bad-patch-plugin
 
 Requirements (probe):
   - Node ≥22.19 for dsh
@@ -32,9 +33,10 @@ Requirements (probe):
   - export PATH so node22 + dsh bins are found
 
 Notes:
-  - dump ≠ real boot. Hang-layer dump is not a full dsh boot.
+  - dump ≠ real boot. Hang-layer dump and --dump-config-schema are not a full dsh boot.
+  - load_ok is lite schema only (schema ≠ 全量 boot).
+  - Overall success (exit 0) only when install_ok && config_hang_ok && load_ok.
   - probe uses a temporary DSH_HOME only; never writes to ~/.dsh.
-  - load_ok is stubbed in M2 (skipped; dump≠boot).
 `;
 
 function printHelp(): void {
@@ -42,7 +44,7 @@ function printHelp(): void {
 }
 
 function printVersion(): void {
-  process.stdout.write("dsh-compat-matrix 0.2.0 (M2 probe)\n");
+  process.stdout.write("dsh-compat-matrix 0.3.0 (M3 three-state probe)\n");
 }
 
 async function runProbe(pluginPath: string | undefined): Promise<void> {
@@ -60,7 +62,7 @@ async function runProbe(pluginPath: string | undefined): Promise<void> {
     process.stdout.write(formatProbeJson(result) + "\n");
     process.stderr.write(formatProbeSummary(result) + "\n");
     process.exitCode =
-      result.install_ok && result.config_hang_ok ? 0 : 1;
+      result.install_ok && result.config_hang_ok && result.load_ok ? 0 : 1;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failure = {
@@ -69,10 +71,9 @@ async function runProbe(pluginPath: string | undefined): Promise<void> {
       profile: "compat-probe",
       install_ok: false,
       config_hang_ok: false,
-      load_ok: {
-        status: "skipped",
-        reason: "M2 lite; dump≠boot",
-      },
+      load_ok: false,
+      duration_ms: 0,
+      error_stage: "preflight" as const,
       error: message,
     };
     process.stdout.write(formatProbeJson(failure) + "\n");
@@ -83,8 +84,8 @@ async function runProbe(pluginPath: string | undefined): Promise<void> {
 
 function stubRun(): void {
   process.stderr.write(
-    'Command "run" is not implemented yet (planned for M3+ matrix).\n' +
-      "Use `probe <path>` for a single local plugin in M2.\n",
+    'Command "run" is not implemented yet (planned for M4+/matrix).\n' +
+      "Use `probe <path>` for a single local plugin three-state probe in M3.\n",
   );
   process.exitCode = 1;
 }

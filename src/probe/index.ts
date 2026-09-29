@@ -1,6 +1,6 @@
-/** Probe — local plugin hang-layer probe (M2). */
+/** Probe — local plugin three-state probe (M3). */
 export {
   probeLocalPlugin,
   type ProbeLocalResult,
-  type LoadOkStub,
+  type ErrorStage,
 } from "./probe-local.js";
